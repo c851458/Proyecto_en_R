@@ -1,0 +1,857 @@
+---
+title: "Proyecto Final Inferencia Estadistica"
+author: "Francy Umbarila"
+format: html
+editor: visual
+---
+
+## Proyecto final del semestre
+
+El proyecto final del semestre es en realidad la segunda parte del taller con datos financieros. Debe suponer:
+
+— Las varianzas poblacionales son desconocidas para todas las acciones y el índice.
+
+—Todas las acciones y el índice corresponden a datos pareados.
+
+— KO y S&P500 tienen igual varianza poblacional.
+
+## Preguntas
+
+## 1.
+
+Sólo para las acciones, compare los métodos paramétricos específicos a dichas condiciones cuando se calcula la H0 = 0 para el log-retorno de cada acción con los métodos no-paramétricos correspondientes. a. ¿Se cumplen los supuestos necesarios para utilizar el método no-paramétrico? b. ¿Se está evaluando la misma H0 en ambos? c. ¿Se obtienen valores-p semejantes por ambos métodos?, es decir, ¿se toma la misma decisión con ambos métodos? d. Visualice dos a dos los intervalos de confianza de cada método para compararlos. ¿Qué se deduce? e. Interprete los resultados desde un enfoque práctico:
+
+```{r}
+#| warning: false
+#install.packages("tinytex")
+library(tinytex)
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| paged-print: false
+# Instalar el paquete si no lo tienes
+#install.packages("readxl")
+
+# Cargar la librería
+library(readxl)
+
+# Leer el archivo Excel (ajusta la ruta y el nombre según tu archivo)
+data <- read.csv("C:/Users/carit/Downloads/DatosFinancieros (1).csv")
+
+# Ver las primeras filas del archivo cargado
+head(data)
+
+```
+
+You can add options to executable code like this
+
+```{r}
+df_principal <- as.data.frame(data)
+df_principal
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+df_principal$Date <- as.Date(df_principal$Date, format = "%Y-%m-%d")
+df_principal
+```
+
+```{r}
+#install.packages("dplyr")
+#install.packages("moments")
+library(dplyr)
+library(moments)  # Para asimetría y curtosis
+
+# Ignorar la primera fila y calcular estadísticas
+resultados <- df_principal %>%
+  slice(-1) %>%  # Excluye la primera fila
+  summarise(across(where(is.numeric), list(
+    media = mean,
+    mediana = median,
+    moda = ~ unique(.)[which.max(tabulate(match(., unique(.))))],
+    varianza = var,
+    desviacion = sd,
+    asimetria = skewness,
+    curtosis = kurtosis
+  )))
+
+print(resultados)
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+Empresa <- c("AAPL", "AMZN", "TSLA", "KO", "X.GSPC")
+
+log_ret_long <- df_principal %>%
+  pivot_longer(cols = c("AAPL", "AMZN", "TSLA", "KO", "X.GSPC"),
+               names_to = "Empresa",
+               values_to = "LogRetorno")
+
+ggplot(log_ret_long, aes(x = LogRetorno, fill = Empresa)) +
+  geom_histogram(aes(y = ..density..), bins = 50, color = "black", alpha = 0.5) +
+  geom_density(color = "#FFFFBA", size = 1) +
+  labs(title = "Histograma de Log-Retornos por Empresa", x = "Log-Retorno", y = "Densidad") +
+  theme_minimal() +
+  facet_wrap(~Empresa)
+```
+
+```{r}
+correlacion <- cor(df_principal %>% select(AAPL, AMZN, TSLA, KO, X.GSPC), use = "complete.obs")
+print(correlacion)
+```
+
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+
+# Visualizar
+corrplot(correlacion, method = "color", type = "upper", 
+         tl.cex = 0.8, addCoef.col = "black", number.cex = 0.7)
+```
+
+## a. ¿Se cumplen los supuestos necesarios para utilizar el método no-paramétrico?
+
+```{r}
+shapiro.test(df_principal$AMZN)
+```
+
+```{r}
+p_value_AMZN <- 3.362*(10**(-14))
+alpha <- 0.10
+if (p_value_AMZN > alpha) {
+  print("Asumes que los datos son normales para AMZN")
+}else {
+  print(" no podemos Asumir que los datos son normales para AMZN")
+}
+```
+
+```{r}
+shapiro.test(df_principal$AAPL)
+```
+
+```{r}
+p_value_AAPL <- 3.511e-06
+if (p_value_AAPL > alpha) {
+  print("Asumes que los datos son normales para AMZN")
+}else {
+  print(" no podemos Asumir que los datos son normales para AMZN")
+}
+```
+
+```{r}
+shapiro.test(df_principal$TSLA)
+```
+
+```{r}
+shapiro.test(df_principal$KO)
+```
+
+```{r}
+shapiro.test(df_principal$X.GSPC)
+```
+
+```{r}
+AAPL_T_TEST <- t.test(df_principal$AAPL, mu = 0, conf.level = 0.90)
+```
+
+```{r}
+AMZN_T_TEST <- t.test(df_principal$AMZN, mu = 0,conf.level = 0.90)
+```
+
+```{r}
+TSLA_T_TEST <- t.test(df_principal$TSLA, mu = 0,conf.level = 0.90)
+```
+
+```{r}
+KO_T_TEST <- t.test(df_principal$KO, mu = 0,conf.level = 0.90)
+```
+
+```{r}
+
+X.GSPC_T_TEST <- t.test(df_principal$X.GSPC, mu = 0,conf.level = 0.90)
+```
+
+Simetria de Wilcox
+
+```{r}
+x <- df_principal$AMZN
+
+# Elimina los NA
+x <- x[!is.na(x)]
+
+# Calcula la mediana
+mediana_x <- median(x)
+
+# Filtra los valores distintos a la mediana (para excluir empates)
+x_filtrado <- x[x != mediana_x]
+
+# Conteo de valores por encima de la mediana
+exitos <- sum(x_filtrado > mediana_x)
+
+# Número total de observaciones distintas a la mediana
+n_total <- length(x_filtrado)
+
+# Aplica la prueba binomial
+binom.test(x = exitos,
+           n = n_total,
+           alternative = "two.sided",
+           p = 0.10)
+
+```
+
+```{r}
+x2 <- df_principal$AAPL
+
+# Elimina los NA
+x2 <- x2[!is.na(x2)]
+
+# Calcula la mediana
+mediana_x2 <- median(x2)
+
+# Filtra los valores distintos a la mediana (para excluir empates)
+x_filtrado2 <- x2[x2 != mediana_x2]
+
+# Conteo de valores por encima de la mediana
+exitos2 <- sum(x_filtrado2 > mediana_x2)
+
+# Número total de observaciones distintas a la mediana
+n_total2 <- length(x_filtrado2)
+
+# Aplica la prueba binomial
+binom.test(x = exitos2,
+           n = n_total2,
+           alternative = "two.sided",
+           p = 0.10)
+```
+
+```{r}
+x3 <- df_principal$TSLA
+
+# Elimina los NA
+x3 <- x3[!is.na(x3)]
+
+# Calcula la mediana
+mediana_x3 <- median(x3)
+
+# Filtra los valores distintos a la mediana (para excluir empates)
+x_filtrado3 <- x3[x3 != mediana_x3]
+
+# Conteo de valores por encima de la mediana
+exitos3 <- sum(x_filtrado3 > mediana_x3)
+
+# Número total de observaciones distintas a la mediana
+n_total3 <- length(x_filtrado3)
+
+# Aplica la prueba binomial
+binom.test(x = exitos3,
+           n = n_total3,
+           alternative = "two.sided",
+           p = 0.10)
+```
+
+```{r}
+x4 <- df_principal$KO
+
+# Elimina los NA
+x4 <- x4[!is.na(x4)]
+
+# Calcula la mediana
+mediana_x4 <- median(x4)
+
+# Filtra los valores distintos a la mediana (para excluir empates)
+x_filtrado4 <- x4[x4 != mediana_x4]
+
+# Conteo de valores por encima de la mediana
+exitos4 <- sum(x_filtrado4 > mediana_x4)
+
+# Número total de observaciones distintas a la mediana
+n_total4 <- length(x_filtrado4)
+
+# Aplica la prueba binomial
+binom.test(x = exitos4,
+           n = n_total4,
+           alternative = "two.sided",
+           p = 0.10)
+```
+
+```{r}
+x5 <- df_principal$X.GSPC
+
+# Elimina los NA
+x5 <- x5[!is.na(x5)]
+
+# Calcula la mediana
+mediana_x5 <- median(x5)
+
+# Filtra los valores distintos a la mediana (para excluir empates)
+x_filtrado5 <- x5[x5 != mediana_x5]
+
+# Conteo de valores por encima de la mediana
+exitos5 <- sum(x_filtrado5 > mediana_x5)
+
+# Número total de observaciones distintas a la mediana
+n_total5 <- length(x_filtrado5)
+
+# Aplica la prueba binomial
+binom.test(x = exitos5,
+           n = n_total5,
+           alternative = "two.sided",
+           p = 0.10)
+```
+
+Sí, se cumplen los supuestos necesarios para aplicar el método no paramétrico de Wilcoxon. Primero, realizamos la prueba de normalidad (Shapiro-Wilk) y encontramos que los datos no siguen una distribución normal, lo que justifica evitar métodos paramétricos como el t-test. Sin embargo, para que la prueba de Wilcoxon pareada sea válida al evaluar una mediana poblacional, es importante que la distribución de las diferencias sea simétrica. Por eso, también realizamos una prueba de simetría, la cual no fue rechazada, indicando que la distribución de los datos es razonablemente simétrica. Por lo tanto, al cumplirse este requisito, la prueba de Wilcoxon es apropiada en este caso.
+
+## b. ¿Se está evaluando la misma H₀ en ambos?
+
+```{r}
+AMZN_WLCOX <- wilcox.test(df_principal$AMZN, mu = 0, conf.int = TRUE, conf.level = 0.90, exact = FALSE)
+
+AAPL_WLCOX <- wilcox.test(df_principal$AAPL, mu = 0, conf.int = TRUE, conf.level = 0.90, exact = FALSE)
+
+TSLA_WLCOX <- wilcox.test(df_principal$TSLA, mu = 0, conf.int = TRUE, conf.level = 0.90, exact = FALSE)
+KO_WLCOX <- wilcox.test(df_principal$KO, mu = 0, conf.int = TRUE, conf.level = 0.90, exact = FALSE)
+X.GSPC_WLCOX <- wilcox.test(df_principal$X.GSPC, mu = 0, conf.int = TRUE, conf.level = 0.90, exact = FALSE)
+```
+
+```{r}
+print(AAPL_WLCOX)
+```
+
+```{r}
+print(TSLA_WLCOX)
+```
+
+```{r}
+print(KO_WLCOX)
+```
+
+```{r}
+print(X.GSPC_WLCOX)
+```
+
+No, aunque ambas pruebas se aplican sobre los mismos datos y buscan evaluar si hay una diferencia significativa respecto a un valor de referencia, no están evaluando exactamente la misma hipótesis nula. La prueba t pareada analiza si la **media** de las diferencias es igual a cero, asumiendo normalidad en dichas diferencias. En cambio, la prueba de Wilcoxon pareada evalúa si la **mediana** de las diferencias es igual a cero, bajo el supuesto de simetría, sin requerir normalidad. Por tanto, aunque ambas apuntan a detectar una diferencia central, lo hacen desde enfoques distintos, y sus hipótesis nulas no son equivalentes.
+
+## c. ¿Se obtienen valores-p semejantes por ambos métodos?
+
+```{r}
+AAPL_t_p_value <- AAPL_T_TEST$p.value
+AAPL_WILCOX_p_value <- AAPL_WLCOX$p.value
+
+df_values_AAPL <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_AAPL = c(AAPL_t_p_value, AAPL_WILCOX_p_value)
+)
+df_values_AAPL
+```
+
+```{r}
+AMZN_t_p_value <- AMZN_T_TEST$p.value
+AMZN_WILCOX_p_value <- AMZN_WLCOX$p.value
+
+df_values_AMZN <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_AMZN = c(AMZN_t_p_value, AMZN_WILCOX_p_value)
+)
+df_values_AMZN
+```
+
+```{r}
+TSLA_t_p_value <- TSLA_T_TEST$p.value
+TSLA_WILCOX_p_value <- TSLA_WLCOX$p.value
+
+df_values_TSLA <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_TSLA = c(TSLA_t_p_value, TSLA_WILCOX_p_value)
+)
+df_values_TSLA
+```
+
+```{r}
+KO_t_p_value <- KO_T_TEST$p.value
+KO_WILCOX_p_value <- KO_WLCOX$p.value
+
+df_values_KO <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_KO = c(KO_t_p_value, KO_WILCOX_p_value)
+)
+df_values_KO
+```
+
+```{r}
+X.GSPC_t_p_value <- X.GSPC_T_TEST$p.value
+X.GSPC_WILCOX_p_value <- X.GSPC_WLCOX$p.value
+
+df_values_X.GSPC <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_X.GSPC = c(X.GSPC_t_p_value, X.GSPC_WILCOX_p_value)
+)
+df_values_X.GSPC
+```
+
+```{r}
+names(df_values_AMZN) <- c("Metodo", "p_value")
+names(df_values_AAPL) <- c("Metodo", "p_value")
+names(df_values_TSLA) <- c("Metodo", "p_value")
+names(df_values_KO) <- c("Metodo", "p_value")
+names(df_values_X.GSPC) <- c("Metodo", "p_value")
+df_total_values <- rbind(df_values_AMZN,df_values_AAPL,df_values_TSLA,df_values_KO,df_values_X.GSPC) 
+df_total_values 
+```
+
+```{r}
+df_total_values$Accion <- rep(c("AMZN", "AMZN", "AAPL", "AAPL", "TSLA", "TSLA", "KO", "KO","X.GSPC","X.GSPC"), each = 1)
+```
+
+```{r}
+ggplot(df_total_values, aes(x = Accion, y = p_value, fill = Metodo)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  labs(title = "Valores-p por Acción y Método",
+       y = "p-value",
+       x = "Acción") +
+  theme_minimal()
+```
+
+## d. Visualice los intervalos de confianza (IC) de cada método y compárelos
+
+```{r}
+AAPL_t_ic <- AAPL_T_TEST$conf.int
+
+# No Paramétrico
+AAPL_WLCOX_ic <- AAPL_WLCOX$conf.int
+
+df_AAPL1 <-data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Límite_Inferior_AAPL = c(AAPL_t_ic[1], AAPL_WLCOX_ic[1]),
+  Límite_Superior_AAPL = c(AAPL_t_ic[2], AAPL_WLCOX_ic[2])
+)
+df_AAPL1
+```
+
+AMZN
+
+```{r}
+AMZN_t_ic <- AMZN_T_TEST$conf.int
+
+# No Paramétrico
+AMZN_WLCOX_ic <- AMZN_WLCOX$conf.int
+
+df_AMZN1 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Límite_Inferior_AMZN = c(AMZN_t_ic[1], AMZN_WLCOX_ic[1]),
+  Límite_Superior_AMZN = c(AMZN_t_ic[2], AMZN_WLCOX_ic[2])
+)
+df_AMZN1
+```
+
+```{r}
+TSLA_t_ic <- TSLA_T_TEST$conf.int
+
+# No Paramétrico
+TSLA_WLCOX_ic <- TSLA_WLCOX$conf.int
+
+df_TSLA1 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Límite_Inferior_TSLA = c(TSLA_t_ic[1], TSLA_WLCOX_ic[1]),
+  Límite_Superior_TSLA = c(TSLA_t_ic[2], TSLA_WLCOX_ic[2])
+)
+df_TSLA1
+```
+
+```{r}
+KO_t_ic <- KO_T_TEST$conf.int
+
+# No Paramétrico
+KO_WLCOX_ic <- KO_WLCOX$conf.int
+
+df_KO1 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Límite_Inferior_KO = c(KO_t_ic[1], KO_WLCOX_ic[1]),
+  Límite_Superior_KO = c(KO_t_ic[2], KO_WLCOX_ic[2])
+)
+df_KO1
+```
+
+```{r}
+X.GSPC_t_ic <- X.GSPC_T_TEST$conf.int
+
+# No Paramétrico
+X.GSPC_WLCOX_ic <- X.GSPC_WLCOX$conf.int
+
+df_GSPC <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Límite_Inferior_X.GSPC = c(X.GSPC_t_ic[1], X.GSPC_WLCOX_ic[1]),
+  Límite_Superior_X.GSPC = c(X.GSPC_t_ic[2], X.GSPC_WLCOX_ic[2])
+)
+df_GSPC
+```
+
+```{r}
+names(df_AMZN1) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_AAPL1) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_TSLA1) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_KO1) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_GSPC) <- c("Metodo", "Limite Inferior", "Limite Superior")
+df_todo1 <- rbind(df_AAPL1,df_AMZN1,df_TSLA1,df_KO1,df_GSPC) 
+df_todo1
+```
+
+```{r}
+df_todo1$Accion <- rep(c("AMZN", "AMZN", "AAPL", "AAPL", "TSLA", "TSLA", "KO", "KO","X.GSPC","X.GSPC"), each = 1)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(df_todo1, aes(x = Accion, ymin = `Limite Inferior`, ymax = `Limite Superior`, color = Metodo)) +
+  geom_errorbar(position = position_dodge(width = 0.5), width = 0.2) +
+  labs(title = "Intervalos de Confianza por Acción y Método",
+       y = "Intervalo de Confianza",
+       x = "Acción") +
+  theme_minimal()
+```
+
+```{r}
+df_todo1$Media <- (df_todo1$`Limite Inferior` + df_todo1$`Limite Superior`) / 2
+
+ggplot(df_todo1, aes(x = Accion, ymin = `Limite Inferior`, ymax = `Limite Superior`, color = Metodo)) +
+  geom_errorbar(position = position_dodge(width = 0.5), width = 0.2) +
+  geom_point(aes(y = Media), position = position_dodge(width = 0.5), size = 2) +
+  labs(title = "Intervalos de Confianza por Acción y Método",
+       y = "Intervalo de Confianza",
+       x = "Acción") +
+  theme_minimal()
+```
+
+## e. Interpretación desde un enfoque práctico
+
+**• ¿Cuál acción parece tener un rendimiento más consistente o favorable?**
+
+Al mirar el primer gráfico, donde se muestran los valores p para cada acción según las pruebas t (en rojo) y Wilcoxon (en azul), podemos identificar cuáles resultados son estadísticamente significativos al nivel de confianza que estamos usando (α = 0.10). En términos simples, si el valor p es menor que 0.10, eso indica que hay una diferencia significativa en el rendimiento frente al índice. En este caso, **ninguna acción alcanza significancia con la prueba t**, lo que sugiere que, bajo sus supuestos (como la normalidad de los datos), no hay suficiente evidencia para afirmar que las acciones se comportan de forma distinta al índice.
+
+Sin embargo, la prueba de Wilcoxon —que no requiere que los datos sigan una distribución normal— **sí encuentra diferencias significativas en AAPL y KO**, ya que sus valores p están por debajo de 0.10. Esto nos dice que sus rendimientos medianos son distintos al del índice, y eso se refuerza cuando vemos el segundo gráfico: **los intervalos de confianza de AAPL y KO (en Wilcoxon) no incluyen el cero**, lo cual apoya visualmente esa diferencia.
+
+En resumen, con base en ambos gráficos, **AAPL y KO se destacan como las acciones con un rendimiento más consistente o favorable**, al menos dentro del nivel de confianza que estamos usando. La prueba no paramétrica es más adecuada aquí y ofrece señales claras a favor de estas dos acciones.
+
+**• ¿Cómo cambiaría la recomendación según el perfil de riesgo de un inversionista (averso vs. propenso al riesgo)?**
+
+Para un inversionista **conservador o adverso al riesgo**, lo más importante es la estabilidad y la previsibilidad. En ese sentido, AAPL y KO podrían ser atractivas, ya que hay evidencia estadística que sugiere que ofrecen un rendimiento diferente (y posiblemente mejor) que el índice. Eso sí, este tipo de inversionista también querrá mirar con lupa **qué tan amplios son los intervalos de confianza**, ya que rangos más estrechos suelen implicar mayor certeza. Si los intervalos son muy amplios, aunque el resultado sea significativo, podrían generar dudas sobre la estabilidad real del rendimiento.
+
+Por otro lado, un inversionista **propenso al riesgo** puede ver las cosas de forma diferente. Para él, el simple hecho de que AAPL y KO hayan mostrado rendimientos significativamente distintos puede verse como una oportunidad. Incluso podría interesarse por otras acciones como TSLA, que aunque no mostraron significancia estadística, podrían tener potencial de crecimiento a largo plazo. Aun así, la **falta de evidencia estadística para AMZN, TSLA y el índice** debería invitar a cierta prudencia, incluso para quienes están dispuestos a asumir más riesgo.
+
+En definitiva, ambos perfiles podrían considerar a AAPL y KO, pero mientras que el conservador buscará más seguridad y consistencia, el arriesgado podría estar dispuesto a aceptar más incertidumbre a cambio de un posible mayor retorno.
+
+**• ¿Qué tan sólidos son estos resultados en términos estadísticos y prácticos?**
+
+Desde el punto de vista estadístico, los resultados para AAPL y KO **sí ofrecen evidencia moderadamente sólida**, especialmente usando la prueba de Wilcoxon y el nivel de significancia del 10%. El hecho de que los valores p sean bajos y que los intervalos de confianza no incluyan el cero sugiere que estamos viendo algo que probablemente no es producto del azar. Pero también hay que recordar que estamos usando un nivel α = 0.10, que es más permisivo que el tradicional 0.05. Eso quiere decir que **hay una mayor probabilidad de cometer un error tipo I**, es decir, de encontrar una diferencia que en realidad no existe.
+
+También hay que considerar que la prueba t no arrojó resultados significativos, lo que puede ser una señal de que **los datos no cumplen con sus supuestos**, como la normalidad. Por eso, los resultados de Wilcoxon, al ser más robustos, tienen más peso en este análisis.
+
+Ahora bien, en términos prácticos, la solidez de estos resultados depende de **la magnitud real de los rendimientos y del rango de incertidumbre**. Que algo sea estadísticamente significativo no siempre significa que sea relevante o útil para un inversionista. Si el rendimiento es muy pequeño, aunque sea distinto del índice, puede no justificar una decisión de inversión. Por eso, además de la significancia, **hay que mirar qué tan grandes son esos rendimientos y qué tan amplios son los intervalos de confianza**.
+
+En resumen, los resultados tienen un respaldo estadístico aceptable para AAPL y KO, pero su valor práctico dependerá de cuánto estén dispuestos los inversionistas a aceptar cierta incertidumbre a cambio de una posible ventaja frente al índice.
+
+Nota técnica: Criterios de decisión basados en el perfil del inversionista. Averso al riesgo: Preferirá acciones con menor variabilidad y mayor estabilidad en sus rendimientos relativos frente a las otras. Si los intervalos de confianza son muy amplios, o si hay alta varianza, las evitará. Propenso al riesgo: Buscará diferencias significativas que impliquen un rendimiento potencialmente más alto, aunque vengan con más variabilidad. Puede aceptar decisiones de inversión aunque el resultado no sea estadísticamente muy sólido, es decir, si los p-valores están cercanos al umbral de decisión.
+
+Sea α =0.10 Atención: Para desarrollar los métodos paramétricos y no paramétricos utilizarán las funciones implementados en R. Específicamente: • t.test(), que es un paquete propio de R base. • wilcox.test(), que es un paquete propio de R base.
+
+Ambos paquetes implementan varias fórmulas dependiendo de los parámetros que se les proporcionen. Deben tener cuidado en proporcionar los parámetros que corresponden al caso que están estudiando. Nota: Si les sale Aviso: cannot compute exact p-value with zeroes. Aviso: cannot compute exact confidence interval with zeroes, cambien el parámetro exact a FALSE para que normalice.
+
+## 2.
+
+## Comparar el método paramétrico específico a dichas condiciones cuando se calcula la H0 = 0 para la
+
+diferencia de medias de cada acción frente al índice S&P500, con el método no-paramétrico correspondi ente.
+
+Comparar el método paramétrico específico a dichas condiciones cuando se calcula la H0 = 0 para la diferencia de medias de cada acción frente al índice S&P500, con el método no-paramétrico correspondi ente. Esta comparación tiene un propósito metodológico: permite identificar si una acción presenta un rendimiento sistemáticamente superior o inferior respecto al índice, más allá de un análisis individual. Esta comparación puede ofrecer una perspectiva complementaria para la toma de decisiones, especialmente en contextos donde se desea seleccionar entre varias opciones.
+
+## a. ¿Se cumplen los supuestos necesarios para utilizar el método no-paramétrico?
+
+```{r}
+df_principal$dif_AAPL <- df_principal$AAPL - df_principal$X.GSPC
+df_principal$dif_AMZN <- df_principal$AMZN - df_principal$X.GSPC
+df_principal$dif_TSLA <- df_principal$TSLA - df_principal$X.GSPC
+df_principal$dif_KO <- df_principal$KO - df_principal$X.GSPC
+```
+
+```{r}
+Y <- df_principal$dif_AAPL
+Y <- Y[!is.na(Y)]  # eliminar NA
+mediana_Y <- median(Y)
+binom.test(x = sum(Y > mediana_Y),
+           n = sum(Y != mediana_Y),
+           p = 0.10,
+           alternative = "two.sided")
+```
+
+tiene una **asimetría significativa**
+
+```{r}
+Y2 <- df_principal$dif_AMZN
+Y2 <- Y2[!is.na(Y2)]  # eliminar NA
+mediana_Y2 <- median(Y2)
+binom.test(x = sum(Y2 > mediana_Y2),
+           n = sum(Y2 != mediana_Y2),
+           p = 0.10,
+           alternative = "two.sided")
+```
+
+tiene una **asimetría significativa**
+
+```{r}
+Y3 <- df_principal$dif_TSLA
+Y3 <- Y3[!is.na(Y3)]  # eliminar NA
+mediana_Y3 <- median(Y3)
+binom.test(x = sum(Y3 > mediana_Y3),
+           n = sum(Y3 != mediana_Y3),
+           p = 0.10,
+           alternative = "two.sided")
+```
+
+tiene una **asimetría significativa**
+
+```{r}
+Y4 <- df_principal$dif_KO
+Y4 <- Y4[!is.na(Y4)]  # eliminar NA
+mediana_Y4 <- median(Y4)
+binom.test(x = sum(Y4 > mediana_Y4),
+           n = sum(Y4 != mediana_Y4),
+           p = 0.10,
+           alternative = "two.sided")
+```
+
+tiene una **asimetría significativa**
+
+```{r}
+shapiro.test(df_principal$AMZN - df_principal$X.GSPC)
+```
+
+```{r}
+shapiro.test(df_principal$AAPL - df_principal$X.GSPC)
+```
+
+```{r}
+shapiro.test(df_principal$TSLA - df_principal$X.GSPC)
+```
+
+## b. ¿Se está evaluando la misma H0 en ambos métodos?
+
+```{r}
+shapiro.test(df_principal$KO - df_principal$X.GSPC)
+```
+
+```{r}
+AMZN_PAREADO_T_TEST <- t.test(df_principal$AMZN, df_principal$X.GSPC, paired = TRUE)
+```
+
+```{r}
+AAPL_PAREADO_T_TEST <- t.test(df_principal$AAPL, df_principal$X.GSPC, paired = TRUE)
+```
+
+```{r}
+TSLA_PAREADO_T_TEST <- t.test(df_principal$TSLA, df_principal$X.GSPC, paired = TRUE)
+```
+
+```{r}
+KO_PAREADO_T_TEST <- t.test(df_principal$KO, df_principal$X.GSPC, paired = TRUE)
+```
+
+No parametricos:
+
+```{r}
+AMZN_PAREADO_WLCOX <- wilcox.test(df_principal$AMZN, df_principal$X.GSPC, paired = TRUE)
+```
+
+```{r}
+AAPL_PAREADO_WLCOX <- wilcox.test(df_principal$AAPL, df_principal$X.GSPC, paired = TRUE)
+```
+
+```{r}
+TSLA_PAREADO_WLCOX <- wilcox.test(df_principal$TSLA, df_principal$X.GSPC, paired = TRUE)
+```
+
+```{r}
+KO_PAREADO_WLCOX <- wilcox.test(df_principal$KO, df_principal$X.GSPC, paired = TRUE)
+```
+
+En ambos casos se está tratando de responder la misma pregunta general: ¿el rendimiento de una acción es diferente al del índice S&P500? Para eso, comparamos las diferencias diarias entre cada acción y el índice (como AMZN − S&P500, AAPL − S&P500, y así sucesivamente). Sin embargo, cada método lo hace desde un enfoque distinto. La prueba t analiza si el promedio de esas diferencias es cero, mientras que la prueba de Wilcoxon se enfoca en la mediana. Además, la prueba t asume que esas diferencias siguen una distribución normal, cosa que la Wilcoxon no necesita, aunque sí requiere que los datos sean simétricos. Entonces, aunque ambas pruebas parten de una hipótesis nula similar (que no hay diferencia), técnicamente no están evaluando exactamente lo mismo: una mira la media y la otra la mediana.
+
+## c. ¿Se obtienen valores-p semejantes por ambos métodos?, es decir, ¿se toma la misma decisión con ambos métodos?
+
+```{r}
+AMZN_PAREADO_t_p_value <- AMZN_PAREADO_T_TEST$p.value
+AMZN_PAREADO_WILCOX_p_value <- AMZN_PAREADO_WLCOX$p.value
+
+df_values_AMZN2 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_AMZN_PAREADO = c(AMZN_PAREADO_t_p_value, AMZN_PAREADO_WILCOX_p_value)
+)
+df_values_AMZN2
+```
+
+```{r}
+AAPL_PAREADO_t_p_value <- AAPL_PAREADO_T_TEST$p.value
+AAPL_PAREADO_WILCOX_p_value <- AAPL_PAREADO_WLCOX$p.value
+
+df_values_AAPL2 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_AAPL_PAREADO = c(AAPL_PAREADO_t_p_value, AAPL_PAREADO_WILCOX_p_value)
+)
+df_values_AAPL2
+```
+
+```{r}
+TSLA_PAREADO_t_p_value <- TSLA_PAREADO_T_TEST$p.value
+TSLA_PAREADO_WILCOX_p_value <- TSLA_PAREADO_WLCOX$p.value
+
+df_values_TSLA2 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_TSLA_PAREADO = c(TSLA_PAREADO_t_p_value, TSLA_PAREADO_WILCOX_p_value)
+)
+df_values_TSLA2
+```
+
+```{r}
+KO_PAREADO_t_p_value <- KO_PAREADO_T_TEST$p.value
+KO_PAREADO_WILCOX_p_value <- KO_PAREADO_WLCOX$p.value
+
+df_values_KO2 <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  p_value_KO_PAREADO = c(KO_PAREADO_t_p_value, KO_PAREADO_WILCOX_p_value)
+)
+df_values_KO2
+```
+
+```{r}
+names(df_values_AMZN2) <- c("Metodo", "p_value")
+names(df_values_AAPL2) <- c("Metodo", "p_value")
+names(df_values_TSLA2) <- c("Metodo", "p_value")
+names(df_values_KO2) <- c("Metodo", "p_value")
+df_total_values2 <- rbind(df_values_AMZN2,df_values_AAPL2,df_values_TSLA2,df_values_KO2) 
+df_total_values2 
+```
+
+```{r}
+df_total_values2$Accion <- rep(c("AMZN", "AMZN", "AAPL", "AAPL", "TSLA", "TSLA", "KO", "KO"), each = 1)
+```
+
+```{r}
+ggplot(df_total_values2, aes(x = Accion, y = p_value, fill = Metodo)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  labs(title = "Valores-p por Acción VS X.GSPC y Método",
+       y = "p-value",
+       x = "Acción") +
+  theme_minimal()
+```
+
+## d. Visualice dos a dos los intervalos de confianza de cada método para compararlos. ¿Qué se deduce?
+
+```{r}
+
+AMZN_PAREADO_t_ic <- AMZN_PAREADO_T_TEST$conf.int
+AMZN_PAREADO_WLCOX_ic <- AMZN_PAREADO_WLCOX$conf.int
+
+df_AMZN <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Limite_Inferior_AMZN_PAREADO = c(AMZN_PAREADO_t_ic[1], AMZN_PAREADO_WLCOX_ic[1]),
+  Limite_Superior_AMZN_PAREADO = c(AMZN_PAREADO_t_ic[2], AMZN_PAREADO_WLCOX_ic[2])
+)
+df_AMZN
+```
+
+```{r}
+AAPL_PAREADO_t_ic <- AAPL_PAREADO_T_TEST$conf.int
+AAPL_PAREADO_WLCOX_ic <- AAPL_PAREADO_WLCOX$conf.int
+
+df_AAPL <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Limite_Inferior_AAPL_PAREADO = c(AAPL_PAREADO_t_ic[1], AAPL_PAREADO_WLCOX_ic[1]),
+  Limite_Superior_AAPL_PAREADO = c(AAPL_PAREADO_t_ic[2], AAPL_PAREADO_WLCOX_ic[2])
+)
+df_AAPL
+```
+
+```{r}
+TSLA_PAREADO_t_ic <- TSLA_PAREADO_T_TEST$conf.int
+TSLA_PAREADO_WLCOX_ic <- TSLA_PAREADO_WLCOX$conf.int
+
+df_TSLA <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Limite_Inferior_TSLAL_PAREADO = c(TSLA_PAREADO_t_ic[1], TSLA_PAREADO_WLCOX_ic[1]),
+  Limite_Superior_TSLA_PAREADO = c(TSLA_PAREADO_t_ic[2], TSLA_PAREADO_WLCOX_ic[2])
+)
+df_TSLA
+```
+
+```{r}
+KO_PAREADO_t_ic <- KO_PAREADO_T_TEST$conf.int
+KO_PAREADO_WLCOX_ic <- KO_PAREADO_WLCOX$conf.int
+
+df_KO <- data.frame(
+  Metodo = c("T-test", "Wilcoxon"),
+  Limite_Inferior_KO_PAREADO = c(KO_PAREADO_t_ic[1], KO_PAREADO_WLCOX_ic[1]),
+  Limite_Superior_KO_PAREADO = c(KO_PAREADO_t_ic[2], KO_PAREADO_WLCOX_ic[2])
+)
+df_KO
+```
+
+```{r}
+names(df_AMZN) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_AAPL) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_TSLA) <- c("Metodo", "Limite Inferior", "Limite Superior")
+names(df_KO) <- c("Metodo", "Limite Inferior", "Limite Superior")
+df_todos <- rbind(df_AAPL,df_AMZN,df_TSLA,df_KO) 
+df_todos
+```
+
+```{r}
+df_todos$Accion <- rep(c("AMZN", "AMZN", "AAPL", "AAPL", "TSLA", "TSLA", "KO", "KO"), each = 1)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(df_todos, aes(x = Accion, ymin = `Limite Inferior`, ymax = `Limite Superior`, color = Metodo)) +
+  geom_errorbar(position = position_dodge(width = 0.5), width = 0.2) +
+  labs(title = "Intervalos de Confianza por Acción VS X.GSPC y Método",
+       y = "Intervalo de Confianza",
+       x = "Acción") +
+  theme_minimal()
+```
+
+```{r}
+df_todos$Media <- (df_todos$`Limite Inferior` + df_todos$`Limite Superior`) / 2
+
+ggplot(df_todos, aes(x = Accion, ymin = `Limite Inferior`, ymax = `Limite Superior`, color = Metodo)) +
+  geom_errorbar(position = position_dodge(width = 0.5), width = 0.2) +
+  geom_point(aes(y = Media), position = position_dodge(width = 0.5), size = 2) +
+  labs(title = "Intervalos de Confianza por Acción VS X.GSPC y Método",
+       y = "Intervalo de Confianza",
+       x = "Acción") +
+  theme_minimal()
+```
+
+## e. **¿La acción presenta un rendimiento significativamente distinto al del índice?**
+
+Al analizar los resultados con un nivel de significancia del 10%, vemos que **ninguna de las acciones (AAPL, AMZN, KO, TSLA)** muestra valores p por debajo de ese umbral, ni en la prueba t pareada ni en la prueba de Wilcoxon. Esto significa que **no hay evidencia estadística suficiente** para afirmar que los rendimientos de estas acciones son significativamente distintos al del índice S&P 500. Además, los intervalos de confianza de todas las comparaciones **incluyen el valor cero**, lo que refuerza esta conclusión. En resumen, según los datos y el nivel de exigencia que estamos utilizando, las acciones se comportan de manera similar al índice.
+
+**• ¿Es superior o inferior?**
+
+Dado que los intervalos de confianza **incluyen el cero en todos los casos**, no podemos afirmar que alguna de las acciones tenga un rendimiento consistentemente superior o inferior al índice. Sin embargo, en algunos casos —como AMZN y TSLA— los valores centrales de los intervalos están **ligeramente por debajo de cero**, lo que podría sugerir una leve tendencia a rendimientos inferiores. Pero como esa diferencia no es estadísticamente significativa, **no es posible sacar conclusiones firmes**. Podríamos hablar de una inclinación, pero no de una diferencia real o confiable.
+
+**• ¿Es esta diferencia relevante para un inversionista averso o propenso al riesgo?**
+
+La importancia de estas diferencias depende del tipo de inversionista. Para alguien **adverso al riesgo**, es clave no solo buscar un mejor rendimiento, sino también cierta estabilidad y previsibilidad. En este caso, aunque algunos intervalos son relativamente estrechos (lo cual puede interpretarse como baja variabilidad), **la falta de significancia estadística impide justificar una preferencia clara por alguna acción sobre el índice**. Por otro lado, un inversionista **más dispuesto a asumir riesgos** podría tolerar más volatilidad en busca de mejores retornos. Sin embargo, **no se observa ninguna señal clara de que alguna acción haya superado al índice en este período**, por lo que tampoco tendría una razón fuerte para inclinarse por estas opciones.
+
+**• ¿El resultado es estadísticamente sólido y también consistente desde lo financiero?**
+
+En términos estadísticos, los resultados **no son sólidos** bajo el criterio del 10%. Ninguna de las pruebas arrojó valores p suficientemente bajos como para rechazar la hipótesis de igualdad de rendimientos entre las acciones y el índice. Además, todos los **intervalos de confianza abarcan el cero**, lo que muestra que **no hay evidencia clara de una diferencia real**. Desde el punto de vista financiero, aunque los intervalos no son excesivamente amplios —lo que puede interpretarse como cierta estabilidad—, **esto no es suficiente** para hablar de una consistencia relevante, ya que **no viene acompañado de rendimientos significativamente distintos ni de información adicional sobre medias o volatilidades específicas**.
+
+En conjunto, los resultados **no ofrecen una base sólida para tomar decisiones de inversión basadas en diferencias de rendimiento entre estas acciones y el índice**.
